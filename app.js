@@ -99,14 +99,14 @@
     const link = location.origin + location.pathname + "#fam-" + f.token;
     const en = f.kids.join(" & "), ja = f.kids.join("・");
     return `Hi! This is Coach Daisuke from JDP Football Academy.
-We've started a weekly report card for ${en} (beta version). You can see what went well each week and what to work on next.
+We've started a weekly report card for ${en} (beta version). Each week you'll get a short comment from the coach about how your child is doing.
 ${link}
 • Both parents can use this same link. Please don't share it outside your family.
 • Tap ♥ to let me know you've read it, and feel free to send a short comment.
 It's a beta, so your feedback is very welcome!
 
 こんにちは、JDPの大輔です。
-${ja}の毎週の通信簿（ベータ版）を始めました。その週に良かったところと、次に伸ばしたいところが見られます。
+${ja}の毎週の通信簿（ベータ版）を始めました。毎週、コーチからお子さまの様子についてのコメントが届きます。
 ${link}
 ・ご両親どちらも同じリンクで見られます。ご家族以外には送らないでください。
 ・読んだら♥を押してください。ひとことコメントも送れます。
@@ -122,7 +122,7 @@ ${link}
   function openDetail(pid) {
     const r = current(pid);
     S.sel = pid; S.view = "detail";
-    S.form = { good: r && r.good.length ? r.good.map(coachTxt) : [""], next: r ? r.next.map(coachTxt) : [], prevResult: r ? (r.prevResult || "") : "" };
+    S.form = { comment: r && r.comment ? coachTxt(r.comment) : "" };
     render(); window.scrollTo(0, 0);
   }
 
@@ -130,9 +130,8 @@ ${link}
     const p = S.players[S.sel]; if (!p) { S.view = "list"; return renderList(); }
     const past = reportsFor(p.id).filter(r => r.week < S.week.key && r.status === "sent");
     const prev = past[0];
-    const prevNext = prev && prev.next.length ? prev.next.map(coachTxt).join(" / ") : "";
     const f = S.form;
-    const okGood = f.good.some(s => s.trim());
+    const ok = f.comment.trim();
     const cur = current(p.id);
     $("#app").innerHTML = `
     <div class="stack">
@@ -148,51 +147,36 @@ ${link}
         <details class="hist" ${past.length ? "" : "open"}>
           <summary>これまでの記録（${past.length}週）</summary>
           ${past.length ? past.map(r => `<div class="hweek"><span class="muted small" style="font-weight:600">${esc(r.weekLabel || r.week)}</span>
-            ${r.good.map(g => `<span><span class="g">✓</span> ${esc(coachTxt(g))}</span>`).join("")}
-            ${r.next.map(n => `<span><span class="n">→</span> ${esc(coachTxt(n))}</span>`).join("")}</div>`).join("") : `<div class="hweek muted">まだ記録はありません。</div>`}
+            <span>${esc(coachTxt(r.comment || {}))}</span></div>`).join("") : `<div class="hweek muted">まだ記録はありません。</div>`}
         </details>
-        ${prevNext ? `<div class="prev"><span class="small muted">前回の伸ばしてほしい点：${esc(prevNext)}</span>
-          <div class="choice" role="group" aria-label="前回の課題の結果">
-            <button data-res="improved" aria-pressed="${f.prevResult === "improved"}">改善した</button>
-            <button data-res="working" aria-pressed="${f.prevResult === "working"}">取り組み中</button>
-          </div></div>` : ""}
       </div>
       <div class="card pad stack">
-        <div style="display:flex;gap:8px;align-items:center"><h2 style="color:var(--good)">良い点</h2><span class="tag req">必須・1つ以上</span></div>
-        ${f.good.map((v, i) => `<div class="field"><textarea id="g${i}" data-k="good" data-i="${i}" aria-label="良い点${i + 1}" rows="2" maxlength="400" placeholder="例: Great first touch under pressure.">${esc(v)}</textarea>${f.good.length > 1 ? `<button class="x" data-del="good" data-i="${i}" aria-label="良い点${i + 1}を削除">×</button>` : ""}</div>`).join("")}
-        ${f.good.length < 6 ? `<button class="add g" id="addG">＋ 良い点を追加</button>` : ""}
-        <div style="display:flex;gap:8px;align-items:center;margin-top:6px"><h2 style="color:var(--next)">伸ばしてほしい点</h2><span class="tag opt">任意</span></div>
-        ${f.next.map((v, i) => `<div class="field"><textarea id="n${i}" data-k="next" data-i="${i}" aria-label="伸ばしてほしい点${i + 1}" rows="2" maxlength="400" placeholder="例: Use the left foot more.">${esc(v)}</textarea><button class="x" data-del="next" data-i="${i}" aria-label="伸ばしてほしい点${i + 1}を削除">×</button></div>`).join("")}
-        ${f.next.length < 6 ? `<button class="add n" id="addN">＋ 伸ばしてほしい点を追加</button>` : ""}
-        <span class="muted small" id="hint">${okGood ? "英語・日本語どちらで書いても、保存するときにもう一方を自動で作ります。" : "良い点を1つ以上書くと保存・送信できます。"}</span>
+        <div style="display:flex;gap:8px;align-items:center"><h2>コーチからのコメント</h2><span class="tag req">必須</span></div>
+        <div class="field"><textarea id="comment" aria-label="コーチからのコメント" rows="5" maxlength="600" placeholder="例: Great first touch under pressure. Let's work on using the left foot more.">${esc(f.comment)}</textarea></div>
+        <span class="muted small" id="hint">${ok ? "英語・日本語どちらで書いても、保存するときにもう一方を自動で作ります。" : "コメントを書くと保存・送信できます。"}</span>
       </div>
       <div class="actions">
-        <button class="btn ghost" id="sendNow" ${okGood && !S.saving ? "" : "disabled"}>今すぐ送信</button>
-        <button class="btn" id="saveNext" ${okGood && !S.saving ? "" : "disabled"}>${S.saving ? "保存中…" : "保存して次の子へ"}</button>
+        <button class="btn ghost" id="sendNow" ${ok && !S.saving ? "" : "disabled"}>今すぐ送信</button>
+        <button class="btn" id="saveNext" ${ok && !S.saving ? "" : "disabled"}>${S.saving ? "保存中…" : "保存して次の子へ"}</button>
       </div>
     </div>`;
     $("#back").onclick = () => { S.view = "list"; render(); };
-    document.querySelectorAll("textarea[data-k]").forEach(t => t.oninput = () => {
-      S.form[t.dataset.k][+t.dataset.i] = t.value;
-      const ok = S.form.good.some(s => s.trim());
-      $("#sendNow").disabled = !ok || S.saving; $("#saveNext").disabled = !ok || S.saving;
-      $("#hint").textContent = ok ? "英語・日本語どちらで書いても、保存するときにもう一方を自動で作ります。" : "良い点を1つ以上書くと保存・送信できます。";
-    });
-    document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { S.form[b.dataset.del].splice(+b.dataset.i, 1); render(); });
-    document.querySelectorAll("[data-res]").forEach(b => b.onclick = () => { S.form.prevResult = S.form.prevResult === b.dataset.res ? "" : b.dataset.res; render(); });
-    const addG = $("#addG"); if (addG) addG.onclick = () => { S.form.good.push(""); render(); const t = $("#g" + (S.form.good.length - 1)); t && t.focus(); };
-    const addN = $("#addN"); if (addN) addN.onclick = () => { S.form.next.push(""); render(); const t = $("#n" + (S.form.next.length - 1)); t && t.focus(); };
+    $("#comment").oninput = (e) => {
+      S.form.comment = e.target.value;
+      const ok2 = S.form.comment.trim();
+      $("#sendNow").disabled = !ok2 || S.saving; $("#saveNext").disabled = !ok2 || S.saving;
+      $("#hint").textContent = ok2 ? "英語・日本語どちらで書いても、保存するときにもう一方を自動で作ります。" : "コメントを書くと保存・送信できます。";
+    };
     $("#sendNow").onclick = () => save(true);
     $("#saveNext").onclick = () => save(false);
   }
 
   async function save(sendNow) {
-    const pid = S.sel, f = S.form;
-    const good = f.good.map(s => s.trim()).filter(Boolean), next = f.next.map(s => s.trim()).filter(Boolean);
-    if (!good.length || S.saving) return;
+    const pid = S.sel, comment = S.form.comment.trim();
+    if (!comment || S.saving) return;
     S.saving = true; render();
     try {
-      await api("save", Object.assign(auth(), { playerId: pid, good, next, prevResult: f.prevResult, send: !!sendNow }));
+      await api("save", Object.assign(auth(), { playerId: pid, comment, send: !!sendNow }));
       await loadCoach();
       toast(sendNow ? "送信しました" : "保存しました");
     } catch (e) {
@@ -230,9 +214,6 @@ ${link}
     const months = p.attendByMonth || [];
     const max = Math.max(1, ...months.map(m => m.n || 0));
     const first = (p.name || "").split(" ")[0];
-    const pastFocus = [];
-    sent.forEach((r, i) => { const older = sent[i + 1]; if (older && older.next.length) pastFocus.push({ items: older.next, res: r.prevResult }); });
-    const resLabel = r => r === "improved" ? (ja ? "改善した" : "Improved") : r === "working" ? (ja ? "取り組み中" : "Working on it") : "";
     $("#app").innerHTML = `
     <div class="stack">
       ${S.kids.length > 1 ? `<div class="sibs" role="tablist" aria-label="${ja ? "お子さま" : "Children"}">${S.kids.map(k => { const r = k.reports[0]; const nw = r && !r.liked;
@@ -250,14 +231,12 @@ ${link}
         </div>
         ${latest ? `
           <div class="stack" style="padding-top:4px">
-            ${latest.good.map(g => `<div class="pt"><span class="g">✓</span><span>${esc(txt(g))}</span></div>`).join("")}
-            ${latest.next.map(n => `<div class="pt nextbox"><span class="n">→</span><span><small>${ja ? "次に伸ばしたいこと" : "Next focus"}</small>${esc(txt(n))}</span></div>`).join("")}
+            <div class="pt">${esc(txt(latest.comment || {}))}</div>
           </div>
-          ${pastFocus.length ? `<div><b class="small muted">${ja ? "これまでの課題" : "Past focus"}</b>${pastFocus.slice(0, 3).map(pf => `<div class="pf"><span>${esc(pf.items.map(txt).join(" / "))}</span><span class="small" style="color:var(--good)">${resLabel(pf.res)}</span></div>`).join("")}</div>` : ""}
           <button class="btn like ${latest.liked ? "liked" : ""}" id="like" ${latest.liked ? "disabled" : ""}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"></path></svg>
             ${latest.liked ? (ja ? "コーチに届きました" : "Sent to Coach") : (ja ? "ありがとう、コーチ！" : "Thanks, Coach!")}</button>
-          ${sent.length > 1 ? `<details class="hist"><summary>${ja ? "過去の週" : "Past weeks"}（${sent.length - 1}）</summary>${sent.slice(1).map(r => `<div class="hweek"><span class="muted small" style="font-weight:600">${esc(r.weekLabel || r.week)}</span>${r.good.map(g => `<span><span class="g">✓</span> ${esc(txt(g))}</span>`).join("")}${r.next.map(n => `<span><span class="n">→</span> ${esc(txt(n))}</span>`).join("")}</div>`).join("")}</details>` : ""}
+          ${sent.length > 1 ? `<details class="hist"><summary>${ja ? "過去の週" : "Past weeks"}（${sent.length - 1}）</summary>${sent.slice(1).map(r => `<div class="hweek"><span class="muted small" style="font-weight:600">${esc(r.weekLabel || r.week)}</span><span>${esc(txt(r.comment || {}))}</span></div>`).join("")}</details>` : ""}
         ` : `<div class="muted">${ja ? "まだ通信簿は届いていません。" : "No report yet."}</div>`}
       </div>
       <div class="card pad stack fb">
